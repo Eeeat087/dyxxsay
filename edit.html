@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>改文案</title>
+<style>
+  :root{--paper:#FBF7EF;--ink:#3A342C;--ink-soft:#6F665A;--line:#E3DACB;--field:#FFFDF8;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{min-height:100vh;background:var(--paper);color:var(--ink);
+    font-family:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+    padding:28px 20px 56px;font-size:16px;line-height:1.7;}
+  main{max-width:26rem;margin:0 auto;}
+  h1{font-size:20px;font-weight:400;letter-spacing:.04em;margin-bottom:6px;}
+  .sub{font-size:13px;color:var(--ink-soft);margin-bottom:20px;}
+  label{display:block;font-size:13px;color:var(--ink-soft);margin:14px 0 6px;}
+  input{width:100%;padding:11px 12px;font-size:16px;font-family:inherit;
+    color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:2px;}
+  input:focus{outline:none;border-color:var(--ink-soft);}
+  .row{display:flex;gap:10px;margin-top:24px;}
+  button{flex:1;padding:13px 0;font-size:16px;font-family:inherit;border-radius:2px;
+    border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;}
+  button.ghost{background:transparent;color:var(--ink);border-color:var(--line);}
+  button[disabled]{opacity:.45;cursor:default;}
+  #msg{margin-top:18px;font-size:14px;min-height:1.7em;white-space:pre-wrap;}
+  .ok{color:#4A6B45;} .err{color:#8C4A3F;}
+  .note{margin-top:32px;padding-top:18px;border-top:1px solid var(--line);
+    font-size:13px;color:var(--ink-soft);line-height:1.9;}
+</style>
+</head>
+<body>
+<main>
+  <h1>改文案</h1>
+  <p class="sub">改完点保存，约 1 分钟后页面更新。二维码和网址不变。</p>
+  <label for="l1">第一行</label>
+  <input id="l1" autocomplete="off">
+  <label for="l2">第二行</label>
+  <input id="l2" autocomplete="off">
+  <label for="l3">第三行</label>
+  <input id="l3" autocomplete="off">
+  <label for="sign">署名行</label>
+  <input id="sign" autocomplete="off">
+  <label for="tok">GitHub 令牌（只填一次）</label>
+  <input id="tok" type="password" autocomplete="off" placeholder="github_pat_...">
+  <div class="row">
+    <button id="save">保存</button>
+    <button id="reload" class="ghost">重新读取</button>
+  </div>
+  <p id="msg"></p>
+  <p class="note" id="note"></p>
+</main>
+<script>
+var REPO="Eeeat087/wanan", FILE="index.html", BRANCH="main";
+var API="https://api.github.com/repos/"+REPO+"/contents/"+FILE;
+var SHA=null;
+function $(id){return document.getElementById(id);}
+function msg(t,c){$("msg").textContent=t;$("msg").className=c||"";}
+function b64enc(s){var u=new TextEncoder().encode(s),b="";for(var i=0;i<u.length;i++)b+=String.fromCharCode(u[i]);return btoa(b);}
+function b64dec(s){var bin=atob(s.replace(/\s/g,"")),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new TextDecoder().decode(u);}
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function unesc(s){return s.replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&");}
+</script>
+<script>
+async function fetchFile(){
+  var tok=$("tok").value.trim();
+  var r=await fetch(API,{headers:tok?{"Authorization":"Bearer "+tok}:{}});
+  if(!r.ok) throw new Error("读取失败 HTTP "+r.status);
+  var j=await r.json();
+  SHA=j.sha;
+  return b64dec(j.content);
+}
+function parse(html){
+  var v=html.match(/<p class="verse">([\s\S]*?)<\/p>/);
+  var s=html.match(/<p class="sign">([\s\S]*?)<\/p>/);
+  if(!v||!s) throw new Error("页面里没找到文案段落");
+  var lines=v[1].split(/<br\s*\/?>/).map(function(x){return unesc(x.trim());});
+  while(lines.length<3) lines.push("");
+  $("l1").value=lines[0]; $("l2").value=lines[1]; $("l3").value=lines[2];
+  $("sign").value=unesc(s[1].trim());
+}
+</script>
+<script>
+async function save(){
+  var tok=$("tok").value.trim();
+  if(!tok){msg("先填 GitHub 令牌，否则存不进去。","err");return;}
+  $("save").disabled=true;
+  try{
+    msg("提交中…");
+    var html=await fetchFile();
+    if(!SHA) throw new Error("拿不到文件指纹");
+    var l=[$("l1").value,$("l2").value,$("l3").value].map(function(x){return esc(x.trim());}).join(" <br>");
+    var s=esc($("sign").value.trim());
+    html=html.replace(/<p class="verse">[\s\S]*?<\/p>/,'<p class="verse">'+l+'</p>');
+    html=html.replace(/<p class="sign">[\s\S]*?<\/p>/,'<p class="sign">'+s+'</p>');
+    var r=await fetch(API,{
+      method:"PUT",
+      headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},
+      body:JSON.stringify({message:"update text",content:b64enc(html),sha:SHA,branch:BRANCH})
+    });
+    if(!r.ok){var t=await r.text();throw new Error("提交失败 HTTP "+r.status+" "+t.slice(0,90));}
+    msg("已提交，约 1 分钟后生效。\n去页面看一下：https://eeeat087.github.io/wanan/","ok");
+  }catch(e){msg(e.message,"err");}
+  $("save").disabled=false;
+}
+async function boot(){
+  var saved=localStorage.getItem("gh_pat");
+  if(saved) $("tok").value=saved;
+  try{ parse(await fetchFile()); msg("已读取当前文案。"); }
+  catch(e){ msg(e.message,"err"); }
+}
+$("save").addEventListener("click",save);
+$("reload").addEventListener("click",boot);
+$("tok").addEventListener("change",function(){localStorage.setItem("gh_pat",$("tok").value.trim());});
+$("note").innerHTML="怎么拿到令牌：GitHub → 头像 → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token；仓库只选 <b>wanan</b>，权限只勾 <b>Contents: Read and write</b>，有效期自定。令牌只存你这台手机的浏览器里。";
+boot();
+</script>
+</body>
+</html>
