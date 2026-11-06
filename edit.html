@@ -124,7 +124,7 @@ async function boot(){
 $("save").addEventListener("click",save);
 $("reload").addEventListener("click",boot);
 $("tok").addEventListener("change",function(){localStorage.setItem("gh_pat",$("tok").value.trim());});
-$("note").innerHTML="怎么拿到令牌：GitHub → 头像 → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token；仓库只选 <b>wanan</b>，权限只勾 <b>Contents: Read and write</b>，有效期自定。令牌只存你这台手机的浏览器里。";
+$("note").innerHTML="怎么拿到令牌：GitHub → 头像 → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token；Repository access 只选 <b>dyxxsay</b>，Permissions 只勾 <b>Contents: Read and write</b>，Expiration 选 Custom 填 90 days。令牌只存你这台手机的浏览器里，过期后重新生成一个粘进来即可。";
 </script>
 <script>
 function render(){
