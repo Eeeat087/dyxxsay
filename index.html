@@ -67,8 +67,9 @@
     color:var(--ink-soft);
   }
   @media (prefers-reduced-motion:no-preference){
-    .verse{animation:rise 1.4s cubic-bezier(.22,.61,.36,1) both;}
-    .sign{animation:rise 1.4s .3s cubic-bezier(.22,.61,.36,1) both;}
+    /* 延迟 .4s 再渐显，渐显本身 .75s，肉眼能看清 */
+    .verse{animation:rise .75s .4s cubic-bezier(.25,.46,.45,.94) both;}
+    .sign{animation:rise .75s .78s cubic-bezier(.25,.46,.45,.94) both;}
   }
   @keyframes rise{
     from{opacity:0;transform:translateY(10px);}
