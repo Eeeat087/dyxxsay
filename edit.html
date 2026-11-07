@@ -27,6 +27,15 @@
   #msg{margin-top:18px;font-size:14px;min-height:1.7em;white-space:pre-wrap;}
   .ok{color:#4A6B45;} .err{color:#8C4A3F;}
   .count{font-size:12px;color:var(--ink-soft);margin-top:6px;}
+  .pick{margin-top:8px;border:1px solid var(--line);background:var(--field);
+    max-height:260px;overflow:auto;padding:4px 10px;}
+  .pick label{display:flex;gap:8px;align-items:flex-start;margin:7px 0;
+    font-size:13px;color:var(--ink);line-height:1.65;}
+  .pick input[type=checkbox]{flex:none;width:16px;height:16px;margin-top:4px;padding:0;}
+  .pick .n{flex:none;color:var(--ink-soft);font-size:12px;min-width:1.5em;
+    font-variant-numeric:tabular-nums;}
+  .pick .t{flex:1;min-width:0;word-break:break-word;}
+  .pick .off{opacity:.45;}
   .note{margin-top:32px;padding-top:18px;border-top:1px solid var(--line);
     font-size:13px;color:var(--ink-soft);line-height:1.9;}
   .preview{margin-top:22px;padding:26px 16px;border:1px dashed var(--line);
@@ -48,10 +57,12 @@
   <textarea id="qs" spellcheck="false" placeholder="时时是好时，/事事是好事。&#10;放轻松/就当是漫游地球"></textarea>
   <p class="count" id="count"></p>
 
-  <label for="only">当前只显示哪几句（留空 = 全部显示）</label>
-  <input id="only" autocomplete="off" placeholder="填序号，如 3 或 3,7,9">
+  <label>当前显示哪些句子（勾选 = 显示；全勾 = 全部显示）</label>
+  <div class="pick" id="pick"></div>
+  <p class="count" id="pickcount"></p>
+
   <label for="unlock">到这个时间自动全部显示（可选）</label>
-  <input id="unlock" autocomplete="off" placeholder="如 2026-11-25 20:00，留空 = 不自动">
+  <input id="unlock" type="datetime-local">
 
   <label for="sign">署名行</label>
   <input id="sign" autocomplete="off">
@@ -94,18 +105,60 @@ function previewText(list){
   if(!list.length) return "";
   return list[Math.floor(Math.random()*list.length)].replace(/\n/g,"<br>");
 }
-/* "当前只显示" 填的是序号，兼容中文逗号、空格、顿号 */
-function parseOnly(){
-  var raw=$("only").value.split(/[^0-9]+/).filter(function(x){return x!=="";});
+/* 勾选状态：CHK 里存每个序号是否显示；没记录过的默认显示 */
+var CHK={};
+/* datetime-local 只认 2026-11-25T20:00，读旧数据时统一成这个格式 */
+function normDT(s){
+  s=String(s||"").trim().replace(" ","T");
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s) ? s.slice(0,16) : "";
+}
+function setChkFromOnly(list, only){
+  CHK={};
+  var allOn = !only || !only.length || only.length>=list.length;
+  if(allOn) return;
+  only.forEach(function(n){ CHK[n]=true; });
+  list.forEach(function(_, i){ if(CHK[i+1]!==true) CHK[i+1]=false; });
+}
+function buildPick(list){
+  var box=$("pick");
+  box.innerHTML="";
+  if(!list.length){
+    var p=document.createElement("p");
+    p.className="count"; p.textContent="先在上面填句子";
+    box.appendChild(p); return;
+  }
+  list.forEach(function(s, i){
+    var n=i+1;
+    var on = (CHK[n]===undefined) ? true : !!CHK[n];
+    var row=document.createElement("label");
+    var cb=document.createElement("input");
+    cb.type="checkbox"; cb.checked=on; cb.setAttribute("data-n", String(n));
+    var num=document.createElement("span");
+    num.className="n"; num.textContent=n+".";
+    var txt=document.createElement("span");
+    txt.className="t"; txt.textContent=s.replace(/\n/g," / ");
+    row.appendChild(cb); row.appendChild(num); row.appendChild(txt);
+    if(!on) row.classList.add("off");
+    box.appendChild(row);
+  });
+  var on2=pickedIndexes().length;
+  $("pickcount").textContent = (on2===list.length || on2===0)
+    ? ("会全部显示（共 "+list.length+" 句）")
+    : ("只显示勾选的 "+on2+" 句，其余 "+ (list.length-on2) +" 句暂不显示");
+}
+function pickedIndexes(){
   var out=[];
-  raw.forEach(function(x){ var n=parseInt(x,10); if(n>0&&out.indexOf(n)<0) out.push(n); });
+  var cbs=$("pick").querySelectorAll("input[type=checkbox]");
+  for(var i=0;i<cbs.length;i++){
+    if(cbs[i].checked) out.push(parseInt(cbs[i].getAttribute("data-n"),10));
+  }
   return out;
 }
 function visibleList(list){
-  var only=parseOnly();
-  if(!only.length) return list;
+  var on=pickedIndexes();
+  if(!on.length || on.length===list.length) return list;
   var out=[];
-  only.forEach(function(n){ if(list[n-1]!==undefined) out.push(list[n-1]); });
+  on.forEach(function(n){ if(list[n-1]!==undefined) out.push(list[n-1]); });
   return out.length?out:list;
 }
 </script>
@@ -130,8 +183,8 @@ function parse(html){
   if(!Array.isArray(list)) list=[];
   $("ttl").value=t?unesc(t[1].trim()):"";
   $("qs").value=listToLines(list);
-  $("only").value=(!Array.isArray(raw)&&raw&&Array.isArray(raw.only))?raw.only.join(","):"";
-  $("unlock").value=(!Array.isArray(raw)&&raw&&raw.unlock)?String(raw.unlock):"";
+  setChkFromOnly(list, (!Array.isArray(raw)&&raw&&Array.isArray(raw.only))?raw.only:[]);
+  $("unlock").value=normDT((!Array.isArray(raw)&&raw&&raw.unlock)?String(raw.unlock):"");
   $("sign").value=s?unesc(s[1].trim()):"";
   render();
 }
@@ -147,8 +200,8 @@ async function save(){
     msg("提交中…");
     var html=await fetchFile();
     if(!SHA) throw new Error("拿不到文件指纹");
-    var only=parseOnly().filter(function(n){return n<=list.length;});
-    if(parseOnly().length && !only.length) throw new Error("填的序号都超出了句子总数（共 "+list.length+" 句）");
+    var only=pickedIndexes();
+    if(!only.length) throw new Error("一句都没勾，这样保存会让页面没有句子可显示。至少勾一句。");
     var unlock=$("unlock").value.trim();
     var payload={quotes:list,only:only,unlock:unlock};
     var json=JSON.stringify(payload).replace(/</g,"\\u003c");
@@ -167,8 +220,8 @@ async function save(){
       body:JSON.stringify({message:"update text",content:b64enc(html),sha:SHA,branch:BRANCH})
     });
     if(!r.ok){var t=await r.text();throw new Error("提交失败 HTTP "+r.status+" "+t.slice(0,90));}
-    msg("已提交：共 "+list.length+" 句，当前显示 "+(only.length?only.length+" 句（第 "+only.join("、")+" 句）":"全部")+
-        (unlock?"\n到 "+unlock+" 自动全部显示":"")+"\n约 1～5 分钟后生效："+SITE,"ok");
+    msg("已提交：共 "+list.length+" 句，"+(only.length===list.length?"当前全部显示":"当前只显示 "+only.length+" 句（第 "+only.join("、")+" 句）")+
+        (unlock?"\n到 "+unlock.replace("T"," ")+" 自动全部显示":"")+"\n约 1～5 分钟后生效："+SITE,"ok");
   }catch(e){msg(e.message,"err");}
   $("save").disabled=false;
 }
@@ -186,6 +239,7 @@ $("note").innerHTML="怎么拿到令牌：GitHub → 头像 → Settings → Dev
 <script>
 function render(){
   var list=linesToList();
+  buildPick(list);
   var vis=visibleList(list);
   var tag=(vis.length!==list.length)?"，当前只显示 "+vis.length+" 句":"";
   $("count").textContent="共 "+list.length+" 句"+tag+(list.length<8?"（少于 8 句，随机时容易反复见到同一句）":"");
@@ -193,12 +247,22 @@ function render(){
   $("pv").innerHTML=p || '<span style="opacity:.5">（暂无文字）</span>';
   $("ps").textContent=$("sign").value.trim();
 }
-["qs","only","unlock","sign","ttl"].forEach(function(id){
+["qs","sign","ttl"].forEach(function(id){
   $(id).addEventListener("input",render);
 });
+$("unlock").addEventListener("change",render);
+/* 勾选变化：记到 CHK 里再重算 */
+$("pick").addEventListener("change",function(e){
+  var t=e.target;
+  if(t && t.type==="checkbox"){
+    var n=t.getAttribute("data-n");
+    CHK[n]=t.checked;
+    render();
+  }
+});
 $("clear").addEventListener("click",function(){
-  $("only").value="";$("unlock").value="";render();
-  msg("已清空限制，点保存后立即全部显示。");
+  CHK={};$("unlock").value="";render();
+  msg("已恢复全部显示，点保存后生效。");
 });
 render();
 boot();
