@@ -142,9 +142,21 @@ function buildPick(list){
     box.appendChild(row);
   });
   var on2=pickedIndexes().length;
-  $("pickcount").textContent = (on2===list.length || on2===0)
-    ? ("会全部显示（共 "+list.length+" 句）")
-    : ("只显示勾选的 "+on2+" 句，其余 "+ (list.length-on2) +" 句暂不显示");
+  if(on2===0){
+    $("pickcount").textContent="一句都没勾，这样保存会被拦住。至少勾一句。";
+  }else if(on2===list.length){
+    $("pickcount").textContent="会全部显示（共 "+list.length+" 句）";
+  }else{
+    $("pickcount").textContent="只显示勾选的 "+on2+" 句，其余 "+(list.length-on2)+" 句暂不显示";
+  }
+}
+/* 只刷新提示和预览，不重建勾选行（否则每次点一下列表都会跳） */
+function updateMeta(list){
+  var vis=visibleList(list);
+  $("count").textContent="共 "+list.length+" 句"+(vis.length!==list.length?"，当前只显示 "+vis.length+" 句":"")+
+    (list.length<8?"（少于 8 句，随机时容易反复见到同一句）":"");
+  $("pv").innerHTML=previewText(vis) || '<span style="opacity:.5">（暂无文字）</span>';
+  $("ps").textContent=$("sign").value.trim();
 }
 function pickedIndexes(){
   var out=[];
@@ -240,25 +252,29 @@ $("note").innerHTML="怎么拿到令牌：GitHub → 头像 → Settings → Dev
 function render(){
   var list=linesToList();
   buildPick(list);
-  var vis=visibleList(list);
-  var tag=(vis.length!==list.length)?"，当前只显示 "+vis.length+" 句":"";
-  $("count").textContent="共 "+list.length+" 句"+tag+(list.length<8?"（少于 8 句，随机时容易反复见到同一句）":"");
-  var p=previewText(vis);
-  $("pv").innerHTML=p || '<span style="opacity:.5">（暂无文字）</span>';
-  $("ps").textContent=$("sign").value.trim();
+  updateMeta(list);
 }
 ["qs","sign","ttl"].forEach(function(id){
   $(id).addEventListener("input",render);
 });
 $("unlock").addEventListener("change",render);
-/* 勾选变化：记到 CHK 里再重算 */
+/* 勾选变化：记到 CHK 里，只更新这一行的淡化和提示，不重建列表 */
 $("pick").addEventListener("change",function(e){
   var t=e.target;
-  if(t && t.type==="checkbox"){
-    var n=t.getAttribute("data-n");
-    CHK[n]=t.checked;
-    render();
+  if(!t || t.type!=="checkbox") return;
+  CHK[t.getAttribute("data-n")]=t.checked;
+  var row=t.closest("label");
+  if(row) row.classList.toggle("off", !t.checked);
+  var list=linesToList();
+  var on=pickedIndexes().length;
+  if(on===0){
+    $("pickcount").textContent="一句都没勾，这样保存会被拦住。至少勾一句。";
+  }else if(on===list.length){
+    $("pickcount").textContent="会全部显示（共 "+list.length+" 句）";
+  }else{
+    $("pickcount").textContent="只显示勾选的 "+on+" 句，其余 "+(list.length-on)+" 句暂不显示";
   }
+  updateMeta(list);
 });
 $("clear").addEventListener("click",function(){
   CHK={};$("unlock").value="";render();
