@@ -94,9 +94,12 @@ function b64enc(s){var u=new TextEncoder().encode(s),b="";for(var i=0;i<u.length
 function b64dec(s){var bin=atob(s.replace(/\s/g,"")),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new TextDecoder().decode(u);}
 function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function unesc(s){return s.replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&");}
-/* 文本框里一行 = 一句，" / " 是句内换行 */
+/* 文本框里一行 = 一句，" / "（半角或全角）是句内换行 */
 function linesToList(){
-  return $("qs").value.split("\n").map(function(x){return x.trim();}).filter(function(x){return x!=="";});
+  return $("qs").value.split("\n").map(function(x){
+    return x.split(/[\/／]/).map(function(p){return p.trim();})
+            .filter(function(p){return p!=="";}).join("\n");
+  }).filter(function(x){return x!=="";});
 }
 function listToLines(list){
   return list.map(function(s){return s.replace(/\n/g,"/");}).join("\n");
@@ -214,6 +217,7 @@ async function save(){
     if(!SHA) throw new Error("拿不到文件指纹");
     var only=pickedIndexes();
     if(!only.length) throw new Error("一句都没勾，这样保存会让页面没有句子可显示。至少勾一句。");
+    if(only.length===list.length) only=[];   /* 全勾就等于不限制 */
     var unlock=$("unlock").value.trim();
     var payload={quotes:list,only:only,unlock:unlock};
     var json=JSON.stringify(payload).replace(/</g,"\\u003c");
