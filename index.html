@@ -66,17 +66,6 @@
     text-align:center;
     color:var(--ink-soft);
   }
-  /* 来访计数：极淡，只做记录，不抢正文 */
-  .stats{
-    position:fixed;
-    left:0;right:0;bottom:14px;
-    text-align:center;
-    font-size:11px;
-    letter-spacing:.08em;
-    color:var(--ink-soft);
-    opacity:.38;
-    pointer-events:none;
-  }
   @media (prefers-reduced-motion:no-preference){
     /* 延迟 .4s 再渐显，渐显本身 .75s，肉眼能看清 */
     .verse{animation:rise .75s .4s cubic-bezier(.25,.46,.45,.94) both;}
@@ -94,12 +83,10 @@
   <p class="verse" id="verse">今天的快乐储存一点，<br>第二天就又会是好天气。<br>今天，先晚安。</p>
   <p class="sign" id="sign">——DYXX——</p>
 </main>
-<div class="stats">来访 <span id="busuanzi_value_site_pv">–</span> 次 · <span id="busuanzi_value_site_uv">–</span> 人</div>
-<script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
 
 <!-- 句子库：每句一个字符串，句内换行用 \n。这段由 edit.html 整块读写，请勿手工破坏格式 -->
 <script id="quotes-data" type="application/json">
-["时时是好时，\n事事是好事。","放轻松\n就当是漫游地球","请因为一点小事就快乐","你的存在 就是礼物","努力生活的你 在发光","世界都是你的游乐场，\n玩得尽兴！","祝你在无数个选择中\n走向自己","爱是世界上最伟大的魔法\n而你就是魔法本身","记得抬头看\n像你一样发光的星星","允许万物 如其所是\n希望美好 如约而至","Love has no definition,\nbut you are the only one.","慢慢来\n你想要的一切都在奔向你"]
+["时时是好时，\n事事是好事。","放轻松\n就当是漫游地球","请因为一点小事就快乐","你的存在 就是礼物","努力生活的你 在发光","世界都是你的游乐场，\n玩得尽兴！","祝你在无数个选择中\n走向自己","爱是世界上最伟大的魔法\n而你就是魔法本身","记得抬头看\n像你一样发光的星星","允许万物 如其所是\n希望美好 如约而至","Love has no definition,\nbut you are the only one.","慢慢来\n你想要的一切都在奔向你","敬请期待……"]
 </script>
 <script>
 (function(){
