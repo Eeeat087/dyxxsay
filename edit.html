@@ -14,9 +14,10 @@
   h1{font-size:20px;font-weight:400;letter-spacing:.04em;margin-bottom:6px;}
   .sub{font-size:13px;color:var(--ink-soft);margin-bottom:20px;}
   label{display:block;font-size:13px;color:var(--ink-soft);margin:14px 0 6px;}
-  input{width:100%;padding:11px 12px;font-size:16px;font-family:inherit;
+  input,textarea{width:100%;padding:11px 12px;font-size:16px;font-family:inherit;
     color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:2px;}
-  input:focus{outline:none;border-color:var(--ink-soft);}
+  textarea{min-height:260px;line-height:2;resize:vertical;}
+  input:focus,textarea:focus{outline:none;border-color:var(--ink-soft);}
   .row{display:flex;gap:10px;margin-top:24px;}
   button{flex:1;padding:13px 0;font-size:16px;font-family:inherit;border-radius:2px;
     border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;}
@@ -24,42 +25,47 @@
   button[disabled]{opacity:.45;cursor:default;}
   #msg{margin-top:18px;font-size:14px;min-height:1.7em;white-space:pre-wrap;}
   .ok{color:#4A6B45;} .err{color:#8C4A3F;}
+  .count{font-size:12px;color:var(--ink-soft);margin-top:6px;}
   .note{margin-top:32px;padding-top:18px;border-top:1px solid var(--line);
     font-size:13px;color:var(--ink-soft);line-height:1.9;}
   .preview{margin-top:22px;padding:26px 16px;border:1px dashed var(--line);
     background:#F6EFE2;text-align:center;}
   .preview .v{font-size:17px;line-height:2.05;letter-spacing:.055em;text-indent:.055em;}
   .preview .s{margin-top:18px;font-size:13px;color:var(--ink-soft);letter-spacing:0;}
-  .hint{font-size:12px;color:var(--ink-soft);text-align:center;margin-bottom:6px;}
 </style>
 </head>
 <body>
 <main>
   <h1>改文案</h1>
-  <p class="sub">改完点保存，约 1 分钟后页面更新。二维码和网址不变。</p>
-  <label for="ttl">页面标题（标签页/微信顶栏）</label>
+  <p class="sub">改完点保存，约 1～5 分钟后页面更新。二维码和网址不变。</p>
+
+  <label for="ttl">页面标题（标签页 / 微信顶栏）</label>
   <input id="ttl" autocomplete="off" placeholder="♡小纸条">
-  <label for="l1">第一行</label>
-  <input id="l1" autocomplete="off">
-  <label for="l2">第二行</label>
-  <input id="l2" autocomplete="off">
-  <label for="l3">第三行</label>
-  <input id="l3" autocomplete="off">
+
+  <label for="qs">句子库（一行一句，句内换行用 / ）</label>
+  <textarea id="qs" spellcheck="false" placeholder="时时是好时，/事事是好事。&#10;放轻松/就当是漫游地球"></textarea>
+  <p class="count" id="count"></p>
+
   <label for="sign">署名行</label>
   <input id="sign" autocomplete="off">
+
   <label for="tok">GitHub 令牌（只填一次）</label>
   <input id="tok" type="password" autocomplete="off" placeholder="github_pat_...">
+
   <div class="row">
     <button id="save">保存</button>
     <button id="reload" class="ghost">重新读取</button>
   </div>
   <p id="msg"></p>
+
   <div class="preview" id="preview"><p class="v" id="pv"></p><p class="s" id="ps"></p></div>
+
   <p class="note" id="note"></p>
 </main>
 <script>
 var REPO="Eeeat087/dyxxsay", FILE="index.html", BRANCH="main";
 var API="https://api.github.com/repos/"+REPO+"/contents/"+FILE;
+var SITE="https://eeeat087.github.io/dyxxsay/";
 var SHA=null;
 function $(id){return document.getElementById(id);}
 function msg(t,c){$("msg").textContent=t;$("msg").className=c||"";}
@@ -67,6 +73,17 @@ function b64enc(s){var u=new TextEncoder().encode(s),b="";for(var i=0;i<u.length
 function b64dec(s){var bin=atob(s.replace(/\s/g,"")),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new TextDecoder().decode(u);}
 function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function unesc(s){return s.replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&");}
+/* 文本框里一行 = 一句，" / " 是句内换行 */
+function linesToList(){
+  return $("qs").value.split("\n").map(function(x){return x.trim();}).filter(function(x){return x!=="";});
+}
+function listToLines(list){
+  return list.map(function(s){return s.replace(/\n/g,"/");}).join("\n");
+}
+function previewText(list){
+  if(!list.length) return "";
+  return list[Math.floor(Math.random()*list.length)].replace(/\n/g,"<br>");
+}
 </script>
 <script>
 async function fetchFile(){
@@ -78,15 +95,15 @@ async function fetchFile(){
   return b64dec(j.content);
 }
 function parse(html){
-  var v=html.match(/<p class="verse">([\s\S]*?)<\/p>/);
-  var s=html.match(/<p class="sign">([\s\S]*?)<\/p>/);
+  var q=html.match(/<script id="quotes-data"[^>]*>([\s\S]*?)<\/script>/);
+  var s=html.match(/<p class="sign"[^>]*>([\s\S]*?)<\/p>/);
   var t=html.match(/<title>([\s\S]*?)<\/title>/);
-  if(!v||!s) throw new Error("页面里没找到文案段落");
+  if(!q) throw new Error("页面里没找到句子库，可能还没升级到新版本");
+  var list=[];
+  try{ list=JSON.parse(unesc(q[1].trim())); }catch(e){ throw new Error("句子库格式坏了，先人工核对一次"); }
   $("ttl").value=t?unesc(t[1].trim()):"";
-  var lines=v[1].split(/<br\s*\/?>/).map(function(x){return unesc(x.trim());});
-  while(lines.length<3) lines.push("");
-  $("l1").value=lines[0]; $("l2").value=lines[1]; $("l3").value=lines[2];
-  $("sign").value=unesc(s[1].trim());
+  $("qs").value=listToLines(list);
+  $("sign").value=s?unesc(s[1].trim()):"";
   render();
 }
 </script>
@@ -94,15 +111,20 @@ function parse(html){
 async function save(){
   var tok=$("tok").value.trim();
   if(!tok){msg("先填 GitHub 令牌，否则存不进去。","err");return;}
+  var list=linesToList();
+  if(!list.length){msg("一句都没填，这样保存会把页面变空白。至少留一句再保存。","err");return;}
   $("save").disabled=true;
   try{
     msg("提交中…");
     var html=await fetchFile();
     if(!SHA) throw new Error("拿不到文件指纹");
-    var l=[$("l1").value,$("l2").value,$("l3").value].map(function(x){return esc(x.trim());}).join(" <br>");
-    var s=esc($("sign").value.trim());
-    html=html.replace(/<p class="verse">[\s\S]*?<\/p>/,'<p class="verse">'+l+'</p>');
-    html=html.replace(/<p class="sign">[\s\S]*?<\/p>/,'<p class="sign">'+s+'</p>');
+    var json=JSON.stringify(list).replace(/</g,"\\u003c");
+    html=html.replace(/<script id="quotes-data"[^>]*>[\s\S]*?<\/script>/,
+      '<script id="quotes-data" type="application/json">\n'+json+'\n<\/script>');
+    var first=list[0].split("\n").map(esc).join("<br>");
+    html=html.replace(/<p class="verse"[^>]*>[\s\S]*?<\/p>/,'<p class="verse" id="verse">'+first+'</p>');
+    var sign=$("sign").value.trim();
+    html=html.replace(/<p class="sign"[^>]*>[\s\S]*?<\/p>/,'<p class="sign" id="sign">'+esc(sign)+'</p>');
     var tt=$("ttl").value.trim();
     if(tt) html=html.replace(/<title>[\s\S]*?<\/title>/,'<title>'+esc(tt)+'</title>');
     var r=await fetch(API,{
@@ -111,7 +133,7 @@ async function save(){
       body:JSON.stringify({message:"update text",content:b64enc(html),sha:SHA,branch:BRANCH})
     });
     if(!r.ok){var t=await r.text();throw new Error("提交失败 HTTP "+r.status+" "+t.slice(0,90));}
-    msg("已提交，约 1 分钟后生效。\n去页面看一下：https://eeeat087.github.io/wanan/","ok");
+    msg("已提交 "+list.length+" 句，约 1～5 分钟后生效。\n看页面："+SITE,"ok");
   }catch(e){msg(e.message,"err");}
   $("save").disabled=false;
 }
@@ -128,11 +150,13 @@ $("note").innerHTML="怎么拿到令牌：GitHub → 头像 → Settings → Dev
 </script>
 <script>
 function render(){
-  var l=[$("l1").value,$("l2").value,$("l3").value].filter(function(x){return x.trim()!=="";});
-  $("pv").innerHTML=l.map(function(x){return esc(x.trim());}).join("<br>") || '<span style="opacity:.5">（暂无文字）</span>';
+  var list=linesToList();
+  $("count").textContent="共 "+list.length+" 句"+(list.length<8?"（少于 8 句，随机时容易反复见到同一句）":"");
+  var p=previewText(list);
+  $("pv").innerHTML=p || '<span style="opacity:.5">（暂无文字）</span>';
   $("ps").textContent=$("sign").value.trim();
 }
-["l1","l2","l3","sign","ttl"].forEach(function(id){
+["qs","sign","ttl"].forEach(function(id){
   $(id).addEventListener("input",render);
 });
 render();
