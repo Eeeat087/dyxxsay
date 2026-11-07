@@ -48,6 +48,11 @@
   <textarea id="qs" spellcheck="false" placeholder="时时是好时，/事事是好事。&#10;放轻松/就当是漫游地球"></textarea>
   <p class="count" id="count"></p>
 
+  <label for="only">当前只显示哪几句（留空 = 全部显示）</label>
+  <input id="only" autocomplete="off" placeholder="填序号，如 3 或 3,7,9">
+  <label for="unlock">到这个时间自动全部显示（可选）</label>
+  <input id="unlock" autocomplete="off" placeholder="如 2026-11-25 20:00，留空 = 不自动">
+
   <label for="sign">署名行</label>
   <input id="sign" autocomplete="off">
 
@@ -57,6 +62,9 @@
   <div class="row">
     <button id="save">保存</button>
     <button id="reload" class="ghost">重新读取</button>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button id="clear" class="ghost">清除限制，立即全部显示</button>
   </div>
   <p id="msg"></p>
 
@@ -86,6 +94,20 @@ function previewText(list){
   if(!list.length) return "";
   return list[Math.floor(Math.random()*list.length)].replace(/\n/g,"<br>");
 }
+/* "当前只显示" 填的是序号，兼容中文逗号、空格、顿号 */
+function parseOnly(){
+  var raw=$("only").value.split(/[^0-9]+/).filter(function(x){return x!=="";});
+  var out=[];
+  raw.forEach(function(x){ var n=parseInt(x,10); if(n>0&&out.indexOf(n)<0) out.push(n); });
+  return out;
+}
+function visibleList(list){
+  var only=parseOnly();
+  if(!only.length) return list;
+  var out=[];
+  only.forEach(function(n){ if(list[n-1]!==undefined) out.push(list[n-1]); });
+  return out.length?out:list;
+}
 </script>
 <script>
 async function fetchFile(){
@@ -101,10 +123,15 @@ function parse(html){
   var s=html.match(/<p class="sign"[^>]*>([\s\S]*?)<\/p>/);
   var t=html.match(/<title>([\s\S]*?)<\/title>/);
   if(!q) throw new Error("页面里没找到句子库，可能还没升级到新版本");
-  var list=[];
-  try{ list=JSON.parse(unesc(q[1].trim())); }catch(e){ throw new Error("句子库格式坏了，先人工核对一次"); }
+  var raw=null;
+  try{ raw=JSON.parse(unesc(q[1].trim())); }catch(e){ throw new Error("句子库格式坏了，先人工核对一次"); }
+  /* 兼容两种存法：旧的纯数组，新的 {quotes, only, unlock} */
+  var list = Array.isArray(raw) ? raw : ((raw&&raw.quotes)||[]);
+  if(!Array.isArray(list)) list=[];
   $("ttl").value=t?unesc(t[1].trim()):"";
   $("qs").value=listToLines(list);
+  $("only").value=(!Array.isArray(raw)&&raw&&Array.isArray(raw.only))?raw.only.join(","):"";
+  $("unlock").value=(!Array.isArray(raw)&&raw&&raw.unlock)?String(raw.unlock):"";
   $("sign").value=s?unesc(s[1].trim()):"";
   render();
 }
@@ -120,10 +147,15 @@ async function save(){
     msg("提交中…");
     var html=await fetchFile();
     if(!SHA) throw new Error("拿不到文件指纹");
-    var json=JSON.stringify(list).replace(/</g,"\\u003c");
+    var only=parseOnly().filter(function(n){return n<=list.length;});
+    if(parseOnly().length && !only.length) throw new Error("填的序号都超出了句子总数（共 "+list.length+" 句）");
+    var unlock=$("unlock").value.trim();
+    var payload={quotes:list,only:only,unlock:unlock};
+    var json=JSON.stringify(payload).replace(/</g,"\\u003c");
     html=html.replace(/<script id="quotes-data"[^>]*>[\s\S]*?<\/script>/,
       '<script id="quotes-data" type="application/json">\n'+json+'\n<\/script>');
-    var first=list[0].split("\n").map(esc).join("<br>");
+    var firstRef=(only.length?list[only[0]-1]:list[0]);
+    var first=String(firstRef).split("\n").map(esc).join("<br>");
     html=html.replace(/<p class="verse"[^>]*>[\s\S]*?<\/p>/,'<p class="verse" id="verse">'+first+'</p>');
     var sign=$("sign").value.trim();
     html=html.replace(/<p class="sign"[^>]*>[\s\S]*?<\/p>/,'<p class="sign" id="sign">'+esc(sign)+'</p>');
@@ -135,7 +167,8 @@ async function save(){
       body:JSON.stringify({message:"update text",content:b64enc(html),sha:SHA,branch:BRANCH})
     });
     if(!r.ok){var t=await r.text();throw new Error("提交失败 HTTP "+r.status+" "+t.slice(0,90));}
-    msg("已提交 "+list.length+" 句，约 1～5 分钟后生效。\n看页面："+SITE,"ok");
+    msg("已提交：共 "+list.length+" 句，当前显示 "+(only.length?only.length+" 句（第 "+only.join("、")+" 句）":"全部")+
+        (unlock?"\n到 "+unlock+" 自动全部显示":"")+"\n约 1～5 分钟后生效："+SITE,"ok");
   }catch(e){msg(e.message,"err");}
   $("save").disabled=false;
 }
@@ -153,13 +186,19 @@ $("note").innerHTML="怎么拿到令牌：GitHub → 头像 → Settings → Dev
 <script>
 function render(){
   var list=linesToList();
-  $("count").textContent="共 "+list.length+" 句"+(list.length<8?"（少于 8 句，随机时容易反复见到同一句）":"");
-  var p=previewText(list);
+  var vis=visibleList(list);
+  var tag=(vis.length!==list.length)?"，当前只显示 "+vis.length+" 句":"";
+  $("count").textContent="共 "+list.length+" 句"+tag+(list.length<8?"（少于 8 句，随机时容易反复见到同一句）":"");
+  var p=previewText(vis);
   $("pv").innerHTML=p || '<span style="opacity:.5">（暂无文字）</span>';
   $("ps").textContent=$("sign").value.trim();
 }
-["qs","sign","ttl"].forEach(function(id){
+["qs","only","unlock","sign","ttl"].forEach(function(id){
   $(id).addEventListener("input",render);
+});
+$("clear").addEventListener("click",function(){
+  $("only").value="";$("unlock").value="";render();
+  msg("已清空限制，点保存后立即全部显示。");
 });
 render();
 boot();
