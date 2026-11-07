@@ -13,6 +13,7 @@
   main{max-width:26rem;margin:0 auto;}
   h1{font-size:20px;font-weight:400;letter-spacing:.04em;margin-bottom:6px;}
   .sub{font-size:13px;color:var(--ink-soft);margin-bottom:20px;}
+  .statline{font-size:12px;color:var(--ink-soft);margin:-12px 0 18px;letter-spacing:.02em;}
   label{display:block;font-size:13px;color:var(--ink-soft);margin:14px 0 6px;}
   input,textarea{width:100%;padding:11px 12px;font-size:16px;font-family:inherit;
     color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:2px;}
@@ -38,6 +39,7 @@
 <main>
   <h1>改文案</h1>
   <p class="sub">改完点保存，约 1～5 分钟后页面更新。二维码和网址不变。</p>
+  <p class="statline">全站来访 <span id="busuanzi_value_site_pv">–</span> 次 · <span id="busuanzi_value_site_uv">–</span> 人（含本页访问）</p>
 
   <label for="ttl">页面标题（标签页 / 微信顶栏）</label>
   <input id="ttl" autocomplete="off" placeholder="♡小纸条">
@@ -162,5 +164,6 @@ function render(){
 render();
 boot();
 </script>
+<script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
 </body>
 </html>
